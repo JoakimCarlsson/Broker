@@ -84,7 +84,6 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                 if (isNullable)
                     responseTypeString = responseTypeString.TrimEnd('?');
 
-                genericIndentedWriter.Indent += 3;
                 genericIndentedWriter.WriteLine($"case {requestType} command:");
                 genericIndentedWriter.Indent++;
                 genericIndentedWriter.WriteLine($"await ProcessPreProcessors(command, cancellationToken);");
@@ -139,6 +138,8 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                              {
                                  private readonly IServiceProvider _serviceProvider;
                                  private readonly ConcurrentDictionary<Type, object> _handlerCache = new();
+                                 private readonly ConcurrentDictionary<Type, object> _preProcessorCache = new();
+                                 private readonly ConcurrentDictionary<Type, object> _postProcessorCache = new();
                              
                                  public Sender(IServiceProvider serviceProvider)
                                  {
@@ -155,9 +156,19 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                                      return (IHandler<TRequest, TResponse>)_handlerCache.GetOrAdd(typeof(IHandler<TRequest, TResponse>), _ => _serviceProvider.GetRequiredService<IHandler<TRequest, TResponse>>());
                                  }
 
+                                 private IEnumerable<IRequestPreProcessor<TRequest>> GetPreProcessors<TRequest>()
+                                 {
+                                     return (IEnumerable<IRequestPreProcessor<TRequest>>)_preProcessorCache.GetOrAdd(typeof(IRequestPreProcessor<TRequest>), _ => _serviceProvider.GetServices<IRequestPreProcessor<TRequest>>());
+                                 }
+
+                                 private IEnumerable<IRequestPostProcessor<TRequest, TResponse>> GetPostProcessors<TRequest, TResponse>()
+                                 {
+                                     return (IEnumerable<IRequestPostProcessor<TRequest, TResponse>>)_postProcessorCache.GetOrAdd(typeof(IRequestPostProcessor<TRequest, TResponse>), _ => _serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>());
+                                 }
+
                                  private async Task ProcessPreProcessors<TRequest>(TRequest request, CancellationToken cancellationToken)
                                  {
-                                     var preProcessors = _serviceProvider.GetServices<IRequestPreProcessor<TRequest>>();
+                                     var preProcessors = GetPreProcessors<TRequest>();
                                      foreach (var preProcessor in preProcessors)
                                      {
                                          await preProcessor.ProcessAsync(request, cancellationToken);
@@ -166,7 +177,7 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
 
                                  private async Task ProcessPostProcessors<TRequest>(TRequest request, CancellationToken cancellationToken)
                                  {
-                                     var postProcessors = _serviceProvider.GetServices<IRequestPostProcessor<TRequest, object>>();
+                                     var postProcessors = GetPostProcessors<TRequest, object>();
                                      foreach (var postProcessor in postProcessors)
                                      {
                                          await postProcessor.ProcessAsync(request, null, cancellationToken);
@@ -175,7 +186,7 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
 
                                  private async Task ProcessPostProcessors<TRequest, TResponse>(TRequest request, TResponse response, CancellationToken cancellationToken)
                                  {
-                                     var postProcessors = _serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>();
+                                     var postProcessors = GetPostProcessors<TRequest, TResponse>();
                                      foreach (var postProcessor in postProcessors)
                                      {
                                          await postProcessor.ProcessAsync(request, response, cancellationToken);
