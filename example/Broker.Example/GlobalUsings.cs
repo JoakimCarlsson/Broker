@@ -1,5 +1,6 @@
 ﻿// Global using directives
 
+global using System.Diagnostics;
 global using Broker.Abstractions;
 global using Broker.Example.Common;
 global using Broker.Example.Features.Nothing.Get;
