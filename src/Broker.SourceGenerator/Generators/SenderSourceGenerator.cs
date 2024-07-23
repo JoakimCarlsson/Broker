@@ -161,7 +161,12 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                                      return (IEnumerable<IRequestPreProcessor<TRequest>>)_preProcessorCache.GetOrAdd(typeof(IRequestPreProcessor<TRequest>), _ => _serviceProvider.GetServices<IRequestPreProcessor<TRequest>>());
                                  }
 
-                                 private IEnumerable<IRequestPostProcessor<TRequest, TResponse>> GetPostProcessors<TRequest, TResponse>()
+                                 private IEnumerable<IRequestPostProcessor<TRequest>> GetNonGenericPostProcessors<TRequest>()
+                                 {
+                                     return (IEnumerable<IRequestPostProcessor<TRequest>>)_postProcessorCache.GetOrAdd(typeof(IRequestPostProcessor<TRequest>), _ => _serviceProvider.GetServices<IRequestPostProcessor<TRequest>>());
+                                 }
+
+                                 private IEnumerable<IRequestPostProcessor<TRequest, TResponse>> GetGenericPostProcessors<TRequest, TResponse>()
                                  {
                                      return (IEnumerable<IRequestPostProcessor<TRequest, TResponse>>)_postProcessorCache.GetOrAdd(typeof(IRequestPostProcessor<TRequest, TResponse>), _ => _serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>());
                                  }
@@ -177,16 +182,16 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
 
                                  private async Task ProcessPostProcessors<TRequest>(TRequest request, CancellationToken cancellationToken)
                                  {
-                                     var postProcessors = GetPostProcessors<TRequest, object>();
+                                     var postProcessors = GetNonGenericPostProcessors<TRequest>();
                                      foreach (var postProcessor in postProcessors)
                                      {
-                                         await postProcessor.ProcessAsync(request, null, cancellationToken);
+                                         await postProcessor.ProcessAsync(request, cancellationToken);
                                      }
                                  }
 
                                  private async Task ProcessPostProcessors<TRequest, TResponse>(TRequest request, TResponse response, CancellationToken cancellationToken)
                                  {
-                                     var postProcessors = GetPostProcessors<TRequest, TResponse>();
+                                     var postProcessors = GetGenericPostProcessors<TRequest, TResponse>();
                                      foreach (var postProcessor in postProcessors)
                                      {
                                          await postProcessor.ProcessAsync(request, response, cancellationToken);
