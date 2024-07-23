@@ -15,10 +15,16 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.MapGet("/weatherforecast", void (
+app.MapGet("/weatherforecast", (
         [FromServices] ISender sender
     ) => sender.SendAsync(new GetWeatherForecastCommand()))
     .WithName("GetWeatherForecast")
+    .WithOpenApi();
+
+app.MapGet("/nothing", (
+        [FromServices] ISender sender
+        ) => sender.SendAsync(new GetNothingCommand()))
+    .WithName("GetNothing")
     .WithOpenApi();
 
 app.Run();

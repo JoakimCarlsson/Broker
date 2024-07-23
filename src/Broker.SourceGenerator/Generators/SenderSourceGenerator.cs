@@ -65,7 +65,13 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
             if (@interface.TypeArguments.Length == 1)
             {
                 nonGenericIndentedWriter.WriteLine(
-                    $"case {requestType} command: return GetNonGenericHandler<{requestType}>().HandleAsync(command, cancellationToken);");
+                    $"case {requestType} command:");
+                nonGenericIndentedWriter.Indent++;
+                nonGenericIndentedWriter.WriteLine($"await ProcessPreProcessors(command, cancellationToken);");
+                nonGenericIndentedWriter.WriteLine($"await GetNonGenericHandler<{requestType}>().HandleAsync(command, cancellationToken);");
+                nonGenericIndentedWriter.WriteLine($"await ProcessPostProcessors(command, cancellationToken);");
+                nonGenericIndentedWriter.WriteLine("return;");
+                nonGenericIndentedWriter.Indent--;
             }
 
             if (@interface.TypeArguments.Length == 2)
@@ -78,15 +84,14 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                 if (isNullable)
                     responseTypeString = responseTypeString.TrimEnd('?');
 
-                genericIndentedWriter.Indent += 3;
                 genericIndentedWriter.WriteLine($"case {requestType} command:");
                 genericIndentedWriter.Indent++;
-                genericIndentedWriter.WriteLine($"if (typeof(TResponse) == typeof({responseTypeString}))");
-                genericIndentedWriter.OpenCodeBlock();
+                genericIndentedWriter.WriteLine($"await ProcessPreProcessors(command, cancellationToken);");
                 genericIndentedWriter.WriteLine($"var handler = GetGenericHandler<{requestType}, {responseType}>();");
                 genericIndentedWriter.WriteLine($"var task = handler.HandleAsync(command, cancellationToken);");
                 genericIndentedWriter.WriteLine($"await task;");
                 genericIndentedWriter.WriteLine($"var response = task.Result;");
+                genericIndentedWriter.WriteLine($"await ProcessPostProcessors(command, response, cancellationToken);");
 
                 if (isNullable)
                 {
@@ -104,7 +109,6 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                     genericIndentedWriter.WriteLine($"return System.Runtime.CompilerServices.Unsafe.As<{responseTypeString}, TResponse>(ref response);");
                 }
 
-                genericIndentedWriter.CloseCodeBlock();
                 genericIndentedWriter.WriteLine("break;");
                 genericIndentedWriter.Indent--;
             }
@@ -134,6 +138,8 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                              {
                                  private readonly IServiceProvider _serviceProvider;
                                  private readonly ConcurrentDictionary<Type, object> _handlerCache = new();
+                                 private readonly ConcurrentDictionary<Type, object> _preProcessorCache = new();
+                                 private readonly ConcurrentDictionary<Type, object> _postProcessorCache = new();
                              
                                  public Sender(IServiceProvider serviceProvider)
                                  {
@@ -150,7 +156,49 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                                      return (IHandler<TRequest, TResponse>)_handlerCache.GetOrAdd(typeof(IHandler<TRequest, TResponse>), _ => _serviceProvider.GetRequiredService<IHandler<TRequest, TResponse>>());
                                  }
 
-                                 public Task SendAsync<TRequest>(TRequest request, CancellationToken cancellationToken = default)
+                                 private IEnumerable<IRequestPreProcessor<TRequest>> GetPreProcessors<TRequest>()
+                                 {
+                                     return (IEnumerable<IRequestPreProcessor<TRequest>>)_preProcessorCache.GetOrAdd(typeof(IRequestPreProcessor<TRequest>), _ => _serviceProvider.GetServices<IRequestPreProcessor<TRequest>>());
+                                 }
+
+                                 private IEnumerable<IRequestPostProcessor<TRequest>> GetNonGenericPostProcessors<TRequest>()
+                                 {
+                                     return (IEnumerable<IRequestPostProcessor<TRequest>>)_postProcessorCache.GetOrAdd(typeof(IRequestPostProcessor<TRequest>), _ => _serviceProvider.GetServices<IRequestPostProcessor<TRequest>>());
+                                 }
+
+                                 private IEnumerable<IRequestPostProcessor<TRequest, TResponse>> GetGenericPostProcessors<TRequest, TResponse>()
+                                 {
+                                     return (IEnumerable<IRequestPostProcessor<TRequest, TResponse>>)_postProcessorCache.GetOrAdd(typeof(IRequestPostProcessor<TRequest, TResponse>), _ => _serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>());
+                                 }
+
+                                 private async Task ProcessPreProcessors<TRequest>(TRequest request, CancellationToken cancellationToken)
+                                 {
+                                     var preProcessors = GetPreProcessors<TRequest>();
+                                     foreach (var preProcessor in preProcessors)
+                                     {
+                                         await preProcessor.ProcessAsync(request, cancellationToken);
+                                     }
+                                 }
+
+                                 private async Task ProcessPostProcessors<TRequest>(TRequest request, CancellationToken cancellationToken)
+                                 {
+                                     var postProcessors = GetNonGenericPostProcessors<TRequest>();
+                                     foreach (var postProcessor in postProcessors)
+                                     {
+                                         await postProcessor.ProcessAsync(request, cancellationToken);
+                                     }
+                                 }
+
+                                 private async Task ProcessPostProcessors<TRequest, TResponse>(TRequest request, TResponse response, CancellationToken cancellationToken)
+                                 {
+                                     var postProcessors = GetGenericPostProcessors<TRequest, TResponse>();
+                                     foreach (var postProcessor in postProcessors)
+                                     {
+                                         await postProcessor.ProcessAsync(request, response, cancellationToken);
+                                     }
+                                 }
+
+                                 public async Task SendAsync<TRequest>(TRequest request, CancellationToken cancellationToken = default)
                                      where TRequest : IRequest
                                  {
                                      switch (request)
@@ -169,7 +217,6 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                                          default:
                                              throw new InvalidOperationException($"No handler registered for type {request.GetType()}");
                                      }
-                                     throw new InvalidOperationException("No handler registered for type");
                                  }
                              }
                              """;
