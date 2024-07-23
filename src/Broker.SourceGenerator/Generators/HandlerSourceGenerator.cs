@@ -33,9 +33,21 @@ public sealed class HandlerSourceGenerator : IIncrementalGenerator
 
             foreach (var @interface in symbol.Interfaces)
             {
-                if (@interface.Name != "IHandler") continue;
-                var handlerType = symbol.ToString();
-                registrationLines.AppendLine($"services.AddScoped<{@interface}, {handlerType}>();");
+                if (@interface.Name == "IHandler")
+                {
+                    var handlerType = symbol.ToString();
+                    registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({handlerType}));");
+                }
+                else if (@interface.Name.StartsWith("IRequestPreProcessor"))
+                {
+                    var preProcessorType = symbol.ToString();
+                    registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({preProcessorType}));");
+                }
+                else if (@interface.Name.StartsWith("IRequestPostProcessor"))
+                {
+                    var postProcessorType = symbol.ToString();
+                    registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({postProcessorType}));");
+                }
             }
         }
 
