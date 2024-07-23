@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{53C5643A-EC0D-4403-BE73-16E4F1452302}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Broker.Abstractions", "src\Broker.Abstractions\Broker.Abstractions.csproj", "{5F78FB76-6940-4BF4-BD0B-0D5CE86C85E0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Broker.SourceGenerator", "src\Broker.SourceGenerator\Broker.SourceGenerator.csproj", "{41E0546A-43F8-47FF-9429-52D8C5A82995}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "example", "example", "{A6BAABF9-D1E3-42E8-B555-1A1E8675623E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Broker.Example", "example\Broker.Example\Broker.Example.csproj", "{B51DE37A-8725-4758-99BF-2B86667715C5}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{5F78FB76-6940-4BF4-BD0B-0D5CE86C85E0} = {53C5643A-EC0D-4403-BE73-16E4F1452302}
+		{41E0546A-43F8-47FF-9429-52D8C5A82995} = {53C5643A-EC0D-4403-BE73-16E4F1452302}
+		{B51DE37A-8725-4758-99BF-2B86667715C5} = {A6BAABF9-D1E3-42E8-B555-1A1E8675623E}
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5F78FB76-6940-4BF4-BD0B-0D5CE86C85E0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5F78FB76-6940-4BF4-BD0B-0D5CE86C85E0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5F78FB76-6940-4BF4-BD0B-0D5CE86C85E0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5F78FB76-6940-4BF4-BD0B-0D5CE86C85E0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{41E0546A-43F8-47FF-9429-52D8C5A82995}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{41E0546A-43F8-47FF-9429-52D8C5A82995}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{41E0546A-43F8-47FF-9429-52D8C5A82995}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{41E0546A-43F8-47FF-9429-52D8C5A82995}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B51DE37A-8725-4758-99BF-2B86667715C5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B51DE37A-8725-4758-99BF-2B86667715C5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B51DE37A-8725-4758-99BF-2B86667715C5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B51DE37A-8725-4758-99BF-2B86667715C5}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
