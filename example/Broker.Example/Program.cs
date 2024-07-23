@@ -3,6 +3,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+builder.Services.AddTransient(typeof(IRequestPipelineBehavior<,>), typeof(TimingBehaviour<,>));
+builder.Services.AddTransient(typeof(IRequestPipelineBehavior<,>), typeof(LoggingBehavior<,>));
 builder.Services.AddHandlers();
 
 var app = builder.Build();

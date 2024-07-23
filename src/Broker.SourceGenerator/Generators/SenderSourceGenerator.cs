@@ -68,7 +68,7 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                     $"case {requestType} command:");
                 nonGenericIndentedWriter.Indent++;
                 nonGenericIndentedWriter.WriteLine($"await ProcessPreProcessors(command, cancellationToken);");
-                nonGenericIndentedWriter.WriteLine($"await GetNonGenericHandler<{requestType}>().HandleAsync(command, cancellationToken);");
+                nonGenericIndentedWriter.WriteLine($"await ExecutePipelineBehaviors(command, () => GetNonGenericHandler<{requestType}>().HandleAsync(command, cancellationToken), cancellationToken);");
                 nonGenericIndentedWriter.WriteLine($"await ProcessPostProcessors(command, cancellationToken);");
                 nonGenericIndentedWriter.WriteLine("return;");
                 nonGenericIndentedWriter.Indent--;
@@ -88,7 +88,7 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                 genericIndentedWriter.Indent++;
                 genericIndentedWriter.WriteLine($"await ProcessPreProcessors(command, cancellationToken);");
                 genericIndentedWriter.WriteLine($"var handler = GetGenericHandler<{requestType}, {responseType}>();");
-                genericIndentedWriter.WriteLine($"var task = handler.HandleAsync(command, cancellationToken);");
+                genericIndentedWriter.WriteLine($"var task = ExecutePipelineBehaviors(command, () => handler.HandleAsync(command, cancellationToken), cancellationToken);");
                 genericIndentedWriter.WriteLine($"await task;");
                 genericIndentedWriter.WriteLine($"var response = task.Result;");
                 genericIndentedWriter.WriteLine($"await ProcessPostProcessors(command, response, cancellationToken);");
@@ -140,6 +140,7 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                                  private readonly ConcurrentDictionary<Type, object> _handlerCache = new();
                                  private readonly ConcurrentDictionary<Type, object> _preProcessorCache = new();
                                  private readonly ConcurrentDictionary<Type, object> _postProcessorCache = new();
+                                 private readonly ConcurrentDictionary<Type, object> _pipelineBehaviorCache = new();
                              
                                  public Sender(IServiceProvider serviceProvider)
                                  {
@@ -171,6 +172,16 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                                      return (IEnumerable<IRequestPostProcessor<TRequest, TResponse>>)_postProcessorCache.GetOrAdd(typeof(IRequestPostProcessor<TRequest, TResponse>), _ => _serviceProvider.GetServices<IRequestPostProcessor<TRequest, TResponse>>());
                                  }
 
+                                 private IEnumerable<IRequestPipelineBehavior<TRequest>> GetPipelineBehaviorsWithoutResponse<TRequest>()
+                                 {
+                                     return (IEnumerable<IRequestPipelineBehavior<TRequest>>)_pipelineBehaviorCache.GetOrAdd(typeof(IRequestPipelineBehavior<TRequest>), _ => _serviceProvider.GetServices<IRequestPipelineBehavior<TRequest>>());
+                                 }
+
+                                 private IEnumerable<IRequestPipelineBehavior<TRequest, TResponse>> GetPipelineBehaviors<TRequest, TResponse>()
+                                 {
+                                     return (IEnumerable<IRequestPipelineBehavior<TRequest, TResponse>>)_pipelineBehaviorCache.GetOrAdd(typeof(IRequestPipelineBehavior<TRequest, TResponse>), _ => _serviceProvider.GetServices<IRequestPipelineBehavior<TRequest, TResponse>>());
+                                 }
+
                                  private async Task ProcessPreProcessors<TRequest>(TRequest request, CancellationToken cancellationToken)
                                  {
                                      var preProcessors = GetPreProcessors<TRequest>();
@@ -196,6 +207,32 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
                                      {
                                          await postProcessor.ProcessAsync(request, response, cancellationToken);
                                      }
+                                 }
+
+                                 private async Task ExecutePipelineBehaviors<TRequest>(TRequest request, Func<Task> handlerDelegate, CancellationToken cancellationToken)
+                                 {
+                                     var behaviors = GetPipelineBehaviorsWithoutResponse<TRequest>();
+                                     var next = new RequestHandlerDelegate(async () => await handlerDelegate());
+                                     foreach (var behavior in behaviors.Reverse())
+                                     {
+                                         var nextCopy = next;
+                                         next = new RequestHandlerDelegate(async () => { await behavior.HandleAsync(request, nextCopy, cancellationToken); });
+                                     }
+
+                                     await next();
+                                 }
+
+                                 private async Task<TResponse> ExecutePipelineBehaviors<TRequest, TResponse>(TRequest request, Func<Task<TResponse>> handlerDelegate, CancellationToken cancellationToken)
+                                 {
+                                     var behaviors = GetPipelineBehaviors<TRequest, TResponse>();
+                                     var next = new RequestHandlerDelegate<TResponse>(handlerDelegate);
+                                     foreach (var behavior in behaviors.Reverse())
+                                     {
+                                         var nextCopy = next;
+                                         next = new RequestHandlerDelegate<TResponse>(() => behavior.HandleAsync(request, nextCopy, cancellationToken));
+                                     }
+
+                                     return await next();
                                  }
 
                                  public async Task SendAsync<TRequest>(TRequest request, CancellationToken cancellationToken = default)
