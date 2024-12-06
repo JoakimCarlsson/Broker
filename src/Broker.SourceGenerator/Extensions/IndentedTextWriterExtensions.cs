@@ -13,4 +13,9 @@ internal static class IndentedTextWriterExtensions
         writer.Indent--;
         writer.WriteLine("}");
     }
+    
+    internal static void Indent(this IndentedTextWriter writer, int count = 1)
+    {
+        writer.Indent += count;
+    }
 }

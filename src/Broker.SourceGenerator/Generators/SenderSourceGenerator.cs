@@ -51,70 +51,61 @@ public sealed class SenderSourceGenerator : IIncrementalGenerator
     }
 
     private void AppendSwitchCases(
-        INamedTypeSymbol symbol,
-        StringWriter nonGenericRequestSwitchCases,
-        StringWriter genericRequestSwitchCases
+    INamedTypeSymbol symbol,
+    StringWriter nonGenericRequestSwitchCases,
+    StringWriter genericRequestSwitchCases
     )
     {
         using var nonGenericIndentedWriter = new IndentedTextWriter(nonGenericRequestSwitchCases);
         using var genericIndentedWriter = new IndentedTextWriter(genericRequestSwitchCases);
+        
         foreach (var @interface in symbol.Interfaces)
         {
             if (@interface.Name != "IHandler") continue;
             var requestType = @interface.TypeArguments[0].ToString();
+            
             if (@interface.TypeArguments.Length == 1)
             {
-                nonGenericIndentedWriter.WriteLine(
-                    $"case {requestType} command:");
-                nonGenericIndentedWriter.Indent++;
-                nonGenericIndentedWriter.WriteLine($"await ProcessPreProcessors(command, cancellationToken);");
-                nonGenericIndentedWriter.WriteLine($"await ExecutePipelineBehaviors(command, () => GetNonGenericHandler<{requestType}>().HandleAsync(command, cancellationToken), cancellationToken);");
-                nonGenericIndentedWriter.WriteLine($"await ProcessPostProcessors(command, cancellationToken);");
+                var varPrefix = requestType.GetHashCode().ToString("X4");
+                var handlerVar = $"h{varPrefix}";
+
+                nonGenericIndentedWriter.WriteLine($"case {requestType} cmd:");
+                nonGenericIndentedWriter.Indent(4);
+                nonGenericIndentedWriter.WriteLine($"var {handlerVar} = GetNonGenericHandler<{requestType}>();");
+                nonGenericIndentedWriter.WriteLine("await ProcessPreProcessors(cmd, cancellationToken);");
+                nonGenericIndentedWriter.WriteLine($"await ExecutePipelineBehaviors(cmd, () => {handlerVar}.HandleAsync(cmd, cancellationToken), cancellationToken);");
+                nonGenericIndentedWriter.WriteLine("await ProcessPostProcessors(cmd, cancellationToken);");
                 nonGenericIndentedWriter.WriteLine("return;");
-                nonGenericIndentedWriter.Indent--;
+                nonGenericIndentedWriter.Indent(-4);
             }
 
             if (@interface.TypeArguments.Length == 2)
             {
                 var responseType = @interface.TypeArguments[1];
                 var responseTypeString = responseType.ToString();
-
                 var isNullable = responseTypeString.EndsWith("?");
 
                 if (isNullable)
                     responseTypeString = responseTypeString.TrimEnd('?');
+                    
+                genericIndentedWriter.WriteLine($"case {requestType} cmd:");
+                genericIndentedWriter.Indent(4);
 
-                genericIndentedWriter.WriteLine($"case {requestType} command:");
-                genericIndentedWriter.Indent++;
-                genericIndentedWriter.WriteLine($"await ProcessPreProcessors(command, cancellationToken);");
-                genericIndentedWriter.WriteLine($"var handler = GetGenericHandler<{requestType}, {responseType}>();");
-                genericIndentedWriter.WriteLine($"var task = ExecutePipelineBehaviors(command, () => handler.HandleAsync(command, cancellationToken), cancellationToken);");
-                genericIndentedWriter.WriteLine($"await task;");
-                genericIndentedWriter.WriteLine($"var response = task.Result;");
-                genericIndentedWriter.WriteLine($"await ProcessPostProcessors(command, response, cancellationToken);");
-
-                if (isNullable)
-                {
-                    genericIndentedWriter.WriteLine("if (response != null)");
-                    genericIndentedWriter.OpenCodeBlock();
-                    genericIndentedWriter.WriteLine($"return System.Runtime.CompilerServices.Unsafe.As<{responseTypeString}, TResponse>(ref response);");
-                    genericIndentedWriter.CloseCodeBlock();
-                    genericIndentedWriter.WriteLine("else");
-                    genericIndentedWriter.OpenCodeBlock();
-                    genericIndentedWriter.WriteLine("return default(TResponse);");
-                    genericIndentedWriter.CloseCodeBlock();
-                }
-                else
-                {
-                    genericIndentedWriter.WriteLine($"return System.Runtime.CompilerServices.Unsafe.As<{responseTypeString}, TResponse>(ref response);");
-                }
-
-                genericIndentedWriter.WriteLine("break;");
-                genericIndentedWriter.Indent--;
+                var varPrefix = requestType.GetHashCode().ToString("X4");
+                var handlerVar = $"h{varPrefix}";
+                var resultVar = $"r{varPrefix}";
+                
+                genericIndentedWriter.WriteLine($"var {handlerVar} = GetGenericHandler<{requestType}, {responseType}>();");
+                genericIndentedWriter.WriteLine("await ProcessPreProcessors(cmd, cancellationToken);");
+                genericIndentedWriter.WriteLine($"var {resultVar} = await ExecutePipelineBehaviors(cmd, () => {handlerVar}.HandleAsync(cmd, cancellationToken), cancellationToken);");
+                genericIndentedWriter.WriteLine($"await ProcessPostProcessors(cmd, {resultVar}, cancellationToken);");
+                genericIndentedWriter.WriteLine($"return System.Runtime.CompilerServices.Unsafe.As<{responseTypeString}, TResponse>(ref {resultVar});");
+                
+                genericIndentedWriter.Indent(-4);
             }
         }
     }
-
+    
     private void GenerateSenderClassFile(
         SourceProductionContext context,
         string nonGenericRequestSwitchCases,
