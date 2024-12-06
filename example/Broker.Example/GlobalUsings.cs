@@ -3,6 +3,7 @@
 global using System.Diagnostics;
 global using Broker.Abstractions;
 global using Broker.Example.Common;
+global using Broker.Example.Features.Generic;
 global using Broker.Example.Features.Nothing.Get;
 global using Broker.Example.Features.Weather.Get;
 global using Broker.SourceGenerator;

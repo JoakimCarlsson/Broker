@@ -29,4 +29,10 @@ app.MapGet("/nothing", (
     .WithName("GetNothing")
     .WithOpenApi();
 
+app.MapGet("/generic", (
+        [FromServices] ISender sender
+        ) => sender.SendAsync(new GetGenericCommand<GetWeatherForecastCommand>()))
+    .WithName("GetGeneric")
+    .WithOpenApi();
+
 app.Run();

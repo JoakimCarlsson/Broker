@@ -22,10 +22,14 @@ public sealed class HandlerSourceGenerator : IIncrementalGenerator
         );
     }
 
-    private string ProcessSyntaxTree(SyntaxTree syntaxTree, Compilation compilation)
+    private string ProcessSyntaxTree(
+        SyntaxTree syntaxTree,
+        Compilation compilation
+    )
     {
         var registrationLines = new StringBuilder();
         var semanticModel = compilation.GetSemanticModel(syntaxTree);
+
         foreach (var classDeclaration in syntaxTree.GetClassDeclarationSyntax())
         {
             if (semanticModel.GetDeclaredSymbol(classDeclaration) is not INamedTypeSymbol symbol)
@@ -35,18 +39,53 @@ public sealed class HandlerSourceGenerator : IIncrementalGenerator
             {
                 if (@interface.Name == "IHandler")
                 {
-                    var handlerType = symbol.ToString();
-                    registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({handlerType}));");
+                    if (symbol.IsGenericType)
+                    {
+                        var commandType = @interface.TypeArguments[0];
+
+                        if (commandType is INamedTypeSymbol genericCommandType && genericCommandType.IsGenericType)
+                        {
+                            var handlerNamespace = symbol.ContainingNamespace;
+                            var handlerName = symbol.Name.Split('`')[0];
+                            var commandNamespace = genericCommandType.ContainingNamespace;
+                            var commandName = genericCommandType.Name.Split('`')[0];
+
+                            registrationLines.AppendLine($"services.AddScoped(typeof({handlerNamespace}.{handlerName}<>), typeof({commandNamespace}.{commandName}<>));");
+                        }
+                    }
+                    else
+                    {
+                        var handlerType = symbol.ToString();
+                        registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({handlerType}));");
+                    }
                 }
                 else if (@interface.Name.StartsWith("IRequestPreProcessor"))
                 {
-                    var preProcessorType = symbol.ToString();
-                    registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({preProcessorType}));");
+                    if (symbol.IsGenericType)
+                    {
+                        var preProcessorType = symbol.ToString().Split('`')[0] + "<>";
+                        var interfaceType = @interface.ToString().Split('`')[0] + "<>";
+                        registrationLines.AppendLine($"services.AddScoped(typeof({interfaceType}), typeof({preProcessorType}));");
+                    }
+                    else
+                    {
+                        var preProcessorType = symbol.ToString();
+                        registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({preProcessorType}));");
+                    }
                 }
                 else if (@interface.Name.StartsWith("IRequestPostProcessor"))
                 {
-                    var postProcessorType = symbol.ToString();
-                    registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({postProcessorType}));");
+                    if (symbol.IsGenericType)
+                    {
+                        var postProcessorType = symbol.ToString().Split('`')[0] + "<>";
+                        var interfaceType = @interface.ToString().Split('`')[0] + "<>";
+                        registrationLines.AppendLine($"services.AddScoped(typeof({interfaceType}), typeof({postProcessorType}));");
+                    }
+                    else
+                    {
+                        var postProcessorType = symbol.ToString();
+                        registrationLines.AppendLine($"services.AddScoped(typeof({@interface}), typeof({postProcessorType}));");
+                    }
                 }
             }
         }
